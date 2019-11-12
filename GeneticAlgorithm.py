@@ -1,9 +1,11 @@
 import random
+from statistics import mean
+import matplotlib.pyplot as plt
 
-N = 10 #number of bits in the string
-P = 10 #population size (no of individuals in the population)
-nGen = 3 #number of generations
-mutRate = 1/P #mutation rate
+N = 50 #number of bits in the string
+P = 50 #population size (no of individuals in the population)
+nGen = 50 #number of generations
+mutRate = 0.02 #mutation rate
 
 class individual():
     gene = [] 
@@ -27,16 +29,18 @@ class individual():
     def printFitness(self):
         print(self.fitness)
 
-population = [] #list to store the population of individuals
-winners = [] #list to store selected individuals
+#population = [] #list to store the population of individuals
+#winners = [] #list to store selected individuals
 
 def createInitalPopulation(): #create P number of individuals and append them to the list.
+    pop = []
     for x in range(0, P):
         i = individual()
-        population.append(i)
+        pop.append(i)
+    return pop
 
-def randomisePopulation(): #function to set up the intial random genes in the population
-    for i in population:
+def randomisePopulation(pop): #function to set up the intial random genes in the population
+    for i in pop:
         i.randomiseGene()
         #i.printGene()
 
@@ -47,20 +51,26 @@ def calculateFitness(indiv): #function to calculate and store the fitness value 
             count = count + 1
     indiv.fitness = count
 
+def recalculateAllFitness(pop):
+    for i in pop:
+        calculateFitness(i)
+
 def randomIndividual(pop): #function to pick and return a random individual from a given list
     indiv = random.choice(pop)
     return indiv
 
-def selectWinners(): #function to select P number of winners by comparing two and selecting the one with the highest fitness or a random one if equal
+def selectWinners(pop): #function to select P number of winners by comparing two and selecting the one with the highest fitness or a random one if equal
+    winners = []
     while len(winners) != P:
-        i1 = randomIndividual(population)
-        i2 = randomIndividual(population)
+        i1 = randomIndividual(pop)
+        i2 = randomIndividual(pop)
         if i1.fitness > i2.fitness:
             winners.append(i1)
         elif i1.fitness == i2.fitness:
             winners.append(random.choice([i1,i2]))
         elif i2.fitness > i1.fitness:
             winners.append(i2)
+    return winners
 
 def mutateIndividual(indiv): #perform mutation in all bits in an individuals gene
     for index, b in enumerate(indiv.gene):
@@ -92,31 +102,103 @@ def doCrossover(pop):
         calculateFitness(child2)
         postCrossoverChilden.append(child2)
     return postCrossoverChilden
+
+def findGoldenBaby(pop): #this function is specfic to the fitness function used
+    for i in pop:
+        if i.fitness == N:
+            print("  GoldenBaby: Individual with fitness " + str(i.fitness) + ", found! Quit searching")
+            return i
+    return None
+
+def findAllTimeBest(pop, previous):
+    if previous == None:
+        previous = pop[0]
+    best = previous
+    for i in pop:
+        calculateFitness(i)
+        if i.fitness > previous.fitness:
+            best = i
+    return best
+
+
+
         
 
     
-#initalise and randomise
-createInitalPopulation()
-randomisePopulation()
+#REPLACE THE WORST INDIVIDUAL WITHT HE ALL TIME BEST AT THE END OF EVERY GENERATION
 
-#generate fitness values
-for i in population: #calculate the fitness of each individual in population
-    calculateFitness(i)
-    i.printFitness()
 
-#selection
-selectWinners()
+def runGA():
+    #Lists to store population
+    meanPlot = []
+    bestPlot = []
+    winners = []
+    population = []
+    goldenBaby = None
+    allTimeBest = None
+    generation = 0
 
-#mutation
-for i in winners: #perform mutation on all individuals in the winners list
-    mutateIndividual(i)
-    calculateFitness(i)
-    i.printFitness()
+    #Create population with random genes
+    population = createInitalPopulation()
+    randomisePopulation(population)
+    generation += 1
 
-#crossover
-population = doCrossover(winners)
+    #Generate their fitness values
+    for i in population:
+        calculateFitness(i)
+        #i.printFitness()
+    print("  The average fitness for the initial population is", mean(i.fitness for i in population))
 
-for i in winners:
-    i.printFitness()
+    while generation <= nGen: #stop the loop once fitness N is reached
+        if goldenBaby == None:
+            recalculateAllFitness(population)
+            goldenBaby = findGoldenBaby(population)
 
-# repeat this process for n generations!
+        print()
+        print("========Generation",str(generation)+"========")
+        print()
+        #Perform selection
+        winners = selectWinners(population)
+        #print("  mean fitness after selection is", mean(i.fitness for i in winners))
+
+        #Perform crossover
+        population = doCrossover(winners)
+        #print("  mean fitness after crossover is", mean(i.fitness for i in population))
+
+        #Perform mutation
+        for i in population:
+            mutateIndividual(i)
+        recalculateAllFitness(population)
+        #print("  mean fitness after mutation is", mean(i.fitness for i in population))
+
+        #Gather some data
+        if goldenBaby == None:
+            recalculateAllFitness(population)
+            goldenBaby = findGoldenBaby(population)
+
+        if goldenBaby != None:
+            print("  Golden baby found in",generation,"generations.")
+            allTimeBest = goldenBaby
+            break;
+        
+        
+        recalculateAllFitness(population)
+        allTimeBest = findAllTimeBest(population, allTimeBest)
+        print("  The fittest individual this generation has a fitness value of", allTimeBest.fitness)
+        bestPlot.append(allTimeBest.fitness)
+
+        meanVal = mean(i.fitness for i in population)
+        print("  The average fitness value for this generation is", meanVal)
+        meanPlot.append(meanVal)
+
+
+        #Finish generation
+        generation += 1
+    plt.plot(bestPlot)
+    plt.plot(meanPlot)
+    plt.xlabel('Generation')
+    plt.ylabel('Fitness')
+    plt.show()
+
+
+runGA()
